@@ -1,0 +1,111 @@
+-- Create the medical_inventory table
+CREATE TABLE medical_inventory (
+    Typeofsales VARCHAR(50),
+    Patient_ID VARCHAR(50),
+    Specialisation VARCHAR(50),
+    Dept VARCHAR(50),
+    Dateofbill DATE,
+    Quantity INT,
+    ReturnQuantity INT,
+    Final_Cost DECIMAL(10, 2),
+    Final_Sales DECIMAL(10, 2),
+    RtnMRP DECIMAL(10, 2),
+    Formulation VARCHAR(50),
+    DrugName VARCHAR(100),
+    SubCat VARCHAR(50),
+    SubCat1 VARCHAR(50)
+);
+
+-- Example of inserting data into the table (assuming we have data in CSV format)
+-- Use a bulk insert method suitable for your SQL database
+
+-- For PostgreSQL:
+COPY medical_inventory(Typeofsales, Patient_ID, Specialisation, Dept, Dateofbill,
+                       Quantity, ReturnQuantity, Final_Cost, Final_Sales, RtnMRP,
+                       Formulation, DrugName, SubCat, SubCat1)
+FROM '/path/to/Medical Inventory Optimaization Dataset.csv'
+DELIMITER ','
+CSV HEADER;
+
+-- Descriptive statistics for Quantity, Final_Cost, Final_Sales, and ReturnQuantity
+SELECT
+    AVG(Quantity) AS Avg_Quantity,
+    AVG(Final_Cost) AS Avg_Final_Cost,
+    AVG(Final_Sales) AS Avg_Final_Sales,
+    AVG(ReturnQuantity) AS Avg_ReturnQuantity,
+    STDDEV(Quantity) AS Std_Quantity,
+    STDDEV(Final_Cost) AS Std_Final_Cost,
+    STDDEV(Final_Sales) AS Std_Final_Sales,
+    STDDEV(ReturnQuantity) AS Std_ReturnQuantity,
+    MIN(Quantity) AS Min_Quantity,
+    MAX(Quantity) AS Max_Quantity,
+    MIN(Final_Cost) AS Min_Final_Cost,
+    MAX(Final_Cost) AS Max_Final_Cost,
+    MIN(Final_Sales) AS Min_Final_Sales,
+    MAX(Final_Sales) AS Max_Final_Sales,
+    MIN(ReturnQuantity) AS Min_ReturnQuantity,
+    MAX(ReturnQuantity) AS Max_ReturnQuantity
+FROM medical_inventory;
+
+-- Correlation between Quantity, Final_Cost, Final_Sales, and ReturnQuantity
+-- Note: SQL databases do not have a built-in correlation function. We'll need to use a formula.
+SELECT
+    (COUNT(*) * SUM(Quantity * ReturnQuantity) - SUM(Quantity) * SUM(ReturnQuantity)) /
+    (SQRT(COUNT(*) * SUM(Quantity * Quantity) - SUM(Quantity) * SUM(Quantity)) *
+     SQRT(COUNT(*) * SUM(ReturnQuantity * ReturnQuantity) - SUM(ReturnQuantity) * SUM(ReturnQuantity))) AS Correlation_Quantity_ReturnQuantity,
+     
+    (COUNT(*) * SUM(Final_Cost * ReturnQuantity) - SUM(Final_Cost) * SUM(ReturnQuantity)) /
+    (SQRT(COUNT(*) * SUM(Final_Cost * Final_Cost) - SUM(Final_Cost) * SUM(Final_Cost)) *
+     SQRT(COUNT(*) * SUM(ReturnQuantity * ReturnQuantity) - SUM(ReturnQuantity) * SUM(ReturnQuantity))) AS Correlation_FinalCost_ReturnQuantity,
+     
+    (COUNT(*) * SUM(Final_Sales * ReturnQuantity) - SUM(Final_Sales) * SUM(ReturnQuantity)) /
+    (SQRT(COUNT(*) * SUM(Final_Sales * Final_Sales) - SUM(Final_Sales) * SUM(Final_Sales)) *
+     SQRT(COUNT(*) * SUM(ReturnQuantity * ReturnQuantity) - SUM(ReturnQuantity) * SUM(ReturnQuantity))) AS Correlation_FinalSales_ReturnQuantity
+FROM medical_inventory;
+
+-- Since SQL databases do not support complex regression analysis directly,
+-- we can calculate the necessary components for a simple linear regression
+
+-- Calculate means
+WITH means AS (
+    SELECT
+        AVG(Quantity) AS Avg_Quantity,
+        AVG(Final_Cost) AS Avg_Final_Cost,
+        AVG(Final_Sales) AS Avg_Final_Sales,
+        AVG(ReturnQuantity) AS Avg_ReturnQuantity
+    FROM medical_inventory
+),
+
+-- Calculate deviations
+deviations AS (
+    SELECT
+        Quantity - m.Avg_Quantity AS Dev_Quantity,
+        Final_Cost - m.Avg_Final_Cost AS Dev_Final_Cost,
+        Final_Sales - m.Avg_Final_Sales AS Dev_Final_Sales,
+        ReturnQuantity - m.Avg_ReturnQuantity AS Dev_ReturnQuantity
+    FROM medical_inventory, means m
+),
+
+-- Calculate covariance and variance
+covar_var AS (
+    SELECT
+        SUM(Dev_Quantity * Dev_ReturnQuantity) AS Covar_Quantity_Return,
+        SUM(Dev_Quantity * Dev_Quantity) AS Var_Quantity,
+        SUM(Dev_Final_Cost * Dev_ReturnQuantity) AS Covar_FinalCost_Return,
+        SUM(Dev_Final_Cost * Dev_Final_Cost) AS Var_Final_Cost,
+        SUM(Dev_Final_Sales * Dev_ReturnQuantity) AS Covar_FinalSales_Return,
+        SUM(Dev_Final_Sales * Dev_Final_Sales) AS Var_Final_Sales
+    FROM deviations
+)
+
+-- Calculate regression coefficients
+SELECT
+    Covar_Quantity_Return / Var_Quantity AS Coef_Quantity,
+    Covar_FinalCost_Return / Var_Final_Cost AS Coef_Final_Cost,
+    Covar_FinalSales_Return / Var_Final_Sales AS Coef_Final_Sales
+FROM covar_var;
+
+-- Export data for visualization
+COPY (
+    SELECT * FROM medical_inventory
+) TO '/path/to/medical_inventory.csv' CSV HEADER;
